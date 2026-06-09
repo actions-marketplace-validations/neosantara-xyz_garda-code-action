@@ -93,6 +93,7 @@ function context(): NeoContext {
       minInlineSeverity: "low",
       commitStrategy: "git",
       useCommitSigning: false,
+      sshSigningKey: "",
       enableMcpCompat: true,
       allowedTools: "",
       disallowedTools: "",

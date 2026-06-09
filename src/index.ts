@@ -34,6 +34,9 @@ import {
 } from "./github/branch-cleanup.js";
 import type { InlineComment } from "./tools/types.js";
 import type { GitHubClient } from "./github/types.js";
+import { formatTranscriptToMarkdown } from "./utils/format-transcript.js";
+import { cleanupSshSigning } from "./tools/commit.js";
+
 
 async function writeExecutionTranscript(
   context: NeoContext,
@@ -313,11 +316,14 @@ ${result.text}
     core.setOutput("branch_name", context.workingBranch || "");
     core.setOutput("session_id", result.responseId || "");
     core.setOutput("github_token", config.githubToken);
-    if (config.displayReport)
-      await core.summary
-        .addHeading("Garda Code Action")
-        .addRaw(result.text)
-        .write();
+    if (config.displayReport) {
+      const summaryMarkdown = formatTranscriptToMarkdown(
+        result.transcript,
+        result.text,
+        result.usage,
+      );
+      await core.summary.addRaw(summaryMarkdown).write();
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     core.setOutput("conclusion", "failed");
@@ -341,6 +347,8 @@ ${result.text}
       }
     }
     core.setFailed(message);
+  } finally {
+    await cleanupSshSigning();
   }
 }
 

@@ -215,6 +215,14 @@ export async function runNeoAgent(params: {
     params.github.config.allowedTools,
     params.github.config.disallowedTools,
   );
+
+  const existingToolNames = new Set(registry.keys());
+  const { loadAndStartMcpServers } = await import("../mcp/client.js");
+  const mcpData = await loadAndStartMcpServers(existingToolNames);
+  for (const tool of mcpData.tools) {
+    registry.set(tool.name, tool);
+  }
+
   const tools = buildResponsesTools(registry);
   core.info(`Tool policy enabled ${registry.size} tools.`);
   let previousResponseId: string | undefined;
@@ -243,158 +251,162 @@ export async function runNeoAgent(params: {
     inlineBuffer: params.inlineBuffer,
   };
 
-  for (let step = 1; step <= params.github.config.maxSteps; step += 1) {
-    if (Date.now() - startedAt > deadlineMs) {
+  try {
+    for (let step = 1; step <= params.github.config.maxSteps; step += 1) {
+      if (Date.now() - startedAt > deadlineMs) {
+        transcript.push({
+          step,
+          type: "guard",
+          ok: false,
+          output: `max_runtime_seconds=${params.github.config.maxRuntimeSeconds} reached`,
+        });
+        return {
+          text: "Garda Code stopped because max_runtime_seconds was reached.",
+          responseId,
+          usage: lastUsage,
+          steps: step - 1,
+          transcript,
+        };
+      }
+      core.info(`Garda Code Responses API step ${step}`);
+      const response = await createResponseWithRetry(
+        params.client,
+        {
+          model: params.github.config.model,
+          input,
+          previous_response_id: previousResponseId,
+          tools,
+          tool_choice: "auto",
+          store: true,
+          metadata: {
+            github_repository: params.github.repository.fullName,
+            github_run_id: params.github.runId,
+            mode: params.github.config.mode,
+            fork_pr: String(params.github.isForkPR),
+            repository_mutation_allowed: String(allowRepositoryMutation),
+          },
+        },
+        params.github.config.retryMaxAttempts,
+      );
+
+      responseId = response.id;
+      previousResponseId = response.id;
+      lastUsage = response.usage;
       transcript.push({
         step,
-        type: "guard",
-        ok: false,
-        output: `max_runtime_seconds=${params.github.config.maxRuntimeSeconds} reached`,
-      });
-      return {
-        text: "Garda Code stopped because max_runtime_seconds was reached.",
+        type: "response",
         responseId,
-        usage: lastUsage,
-        steps: step - 1,
-        transcript,
-      };
-    }
-    core.info(`Garda Code Responses API step ${step}`);
-    const response = await createResponseWithRetry(
-      params.client,
-      {
-        model: params.github.config.model,
-        input,
-        previous_response_id: previousResponseId,
-        tools,
-        tool_choice: "auto",
-        store: true,
-        metadata: {
-          github_repository: params.github.repository.fullName,
-          github_run_id: params.github.runId,
-          mode: params.github.config.mode,
-          fork_pr: String(params.github.isForkPR),
-          repository_mutation_allowed: String(allowRepositoryMutation),
+        output: {
+          usage: lastUsage,
+          output_types: (response.output || []).map((item) => item.type),
+          input_images: step === 1 ? (params.data.commentImages || []).length : 0,
         },
-      },
-      params.github.config.retryMaxAttempts,
-    );
+      });
+      if (params.github.config.showFullOutput)
+        core.info(redact(JSON.stringify(response, null, 2)));
 
-    responseId = response.id;
-    previousResponseId = response.id;
-    lastUsage = response.usage;
-    transcript.push({
-      step,
-      type: "response",
-      responseId,
-      output: {
-        usage: lastUsage,
-        output_types: (response.output || []).map((item) => item.type),
-        input_images: step === 1 ? (params.data.commentImages || []).length : 0,
-      },
-    });
-    if (params.github.config.showFullOutput)
-      core.info(redact(JSON.stringify(response, null, 2)));
+      const calls = parseToolCalls(response);
+      if (calls.length === 0) {
+        finalText =
+          extractText(response) ||
+          "Garda Code finished without a textual response.";
+        return {
+          text: redact(finalText),
+          responseId,
+          usage: lastUsage,
+          steps: step,
+          transcript,
+        };
+      }
 
-    const calls = parseToolCalls(response);
-    if (calls.length === 0) {
-      finalText =
-        extractText(response) ||
-        "Garda Code finished without a textual response.";
-      return {
-        text: redact(finalText),
-        responseId,
-        usage: lastUsage,
-        steps: step,
-        transcript,
-      };
-    }
+      input = [];
+      const executableCalls = calls.slice(
+        0,
+        params.github.config.maxToolCallsPerStep,
+      );
+      const skippedCalls = calls.slice(params.github.config.maxToolCallsPerStep);
 
-    input = [];
-    const executableCalls = calls.slice(
-      0,
-      params.github.config.maxToolCallsPerStep,
-    );
-    const skippedCalls = calls.slice(params.github.config.maxToolCallsPerStep);
+      for (const call of executableCalls) {
+        const signature = toolSignature(call);
+        const seen = (repeatedTools.get(signature) || 0) + 1;
+        repeatedTools.set(signature, seen);
 
-    for (const call of executableCalls) {
-      const signature = toolSignature(call);
-      const seen = (repeatedTools.get(signature) || 0) + 1;
-      repeatedTools.set(signature, seen);
+        if (seen > params.github.config.maxRepeatedToolCalls) {
+          core.warning(`Tool repetition guard blocked ${call.name}.`);
+          transcript.push({
+            step,
+            type: "guard",
+            name: call.name,
+            input: call.arguments,
+            ok: false,
+            output: "Tool repetition guard blocked identical call.",
+          });
+          input.push({
+            type: "function_call_output",
+            call_id: call.call_id,
+            output: JSON.stringify({
+              ok: false,
+              output: `Tool repetition guard: ${call.name} with identical arguments was called too many times.`,
+            }),
+          });
+          continue;
+        }
 
-      if (seen > params.github.config.maxRepeatedToolCalls) {
-        core.warning(`Tool repetition guard blocked ${call.name}.`);
+        core.info(`Executing tool: ${call.name}`);
+        transcript.push({
+          step,
+          type: "tool_call",
+          name: call.name,
+          input: call.arguments,
+        });
+        const result = await executeTool(
+          registry,
+          call.name,
+          call.arguments,
+          toolCtx,
+        );
+        transcript.push({
+          step,
+          type: "tool_result",
+          name: call.name,
+          ok: result.ok,
+          output: truncateText(redact(JSON.stringify(result.output)), 12000),
+        });
+        input.push({
+          type: "function_call_output",
+          call_id: call.call_id,
+          output: truncateText(redact(JSON.stringify(result)), 60000),
+        });
+      }
+
+      for (const call of skippedCalls) {
         transcript.push({
           step,
           type: "guard",
           name: call.name,
           input: call.arguments,
           ok: false,
-          output: "Tool repetition guard blocked identical call.",
+          output: `max_tool_calls_per_step=${params.github.config.maxToolCallsPerStep}`,
         });
         input.push({
           type: "function_call_output",
           call_id: call.call_id,
           output: JSON.stringify({
             ok: false,
-            output: `Tool repetition guard: ${call.name} with identical arguments was called too many times.`,
+            output: `Tool call skipped: max_tool_calls_per_step=${params.github.config.maxToolCallsPerStep} reached.`,
           }),
         });
-        continue;
       }
-
-      core.info(`Executing tool: ${call.name}`);
-      transcript.push({
-        step,
-        type: "tool_call",
-        name: call.name,
-        input: call.arguments,
-      });
-      const result = await executeTool(
-        registry,
-        call.name,
-        call.arguments,
-        toolCtx,
-      );
-      transcript.push({
-        step,
-        type: "tool_result",
-        name: call.name,
-        ok: result.ok,
-        output: truncateText(redact(JSON.stringify(result.output)), 12000),
-      });
-      input.push({
-        type: "function_call_output",
-        call_id: call.call_id,
-        output: truncateText(redact(JSON.stringify(result)), 60000),
-      });
     }
 
-    for (const call of skippedCalls) {
-      transcript.push({
-        step,
-        type: "guard",
-        name: call.name,
-        input: call.arguments,
-        ok: false,
-        output: `max_tool_calls_per_step=${params.github.config.maxToolCallsPerStep}`,
-      });
-      input.push({
-        type: "function_call_output",
-        call_id: call.call_id,
-        output: JSON.stringify({
-          ok: false,
-          output: `Tool call skipped: max_tool_calls_per_step=${params.github.config.maxToolCallsPerStep} reached.`,
-        }),
-      });
-    }
+    return {
+      text: "Garda Code stopped because max_steps was reached.",
+      responseId,
+      usage: lastUsage,
+      steps: params.github.config.maxSteps,
+      transcript,
+    };
+  } finally {
+    await mcpData.stopAll();
   }
-
-  return {
-    text: "Garda Code stopped because max_steps was reached.",
-    responseId,
-    usage: lastUsage,
-    steps: params.github.config.maxSteps,
-    transcript,
-  };
 }

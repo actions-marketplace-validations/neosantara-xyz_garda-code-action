@@ -134,6 +134,10 @@ inputs:
     description: "Compatibility flag. When true and commit_strategy is not set, uses github-api commit strategy. Real cryptographic signing still depends on GitHub/App configuration."
     required: false
     default: "false"
+  ssh_signing_key:
+    description: "SSH private key for signing commits. When provided, git will be configured to use SSH signing. Takes precedence over use_commit_signing."
+    required: false
+    default: ""
   enable_mcp_compat:
     description: "Expose MCP-style tool aliases such as mcp__github_comment__update_garda_comment and mcp__github_file_ops__commit_files."
     required: false

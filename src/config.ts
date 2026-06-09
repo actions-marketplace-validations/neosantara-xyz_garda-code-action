@@ -95,6 +95,7 @@ export type ActionConfig = {
   minInlineSeverity: "low" | "medium" | "high";
   commitStrategy: "git" | "github-api";
   useCommitSigning: boolean;
+  sshSigningKey: string;
   enableMcpCompat: boolean;
   allowedTools: string;
   disallowedTools: string;
@@ -182,6 +183,7 @@ export function readConfig(): ActionConfig {
         ),
       ),
     useCommitSigning: bool("use_commit_signing", false),
+    sshSigningKey: getVal("ssh_signing_key", ""),
     enableMcpCompat: bool("enable_mcp_compat", true),
     allowedTools: getVal("allowed_tools", ""),
     disallowedTools: getVal("disallowed_tools", ""),

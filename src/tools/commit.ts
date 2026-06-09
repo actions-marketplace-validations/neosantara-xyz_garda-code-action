@@ -2,11 +2,52 @@ import { z } from "zod";
 import { execa } from "execa";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import type { GitHubClient } from "../github/types.js";
 import type { NeoTool, ToolExecutionContext } from "./types.js";
 import { splitList } from "../utils/text.js";
 import { shouldIgnore } from "../github/data.js";
 import { subprocessEnv } from "../utils/subprocess-env.js";
+
+const SSH_SIGNING_KEY_PATH = join(homedir(), ".ssh", "garda_signing_key");
+
+export async function setupSshSigning(
+  sshSigningKey: string,
+  cwd: string,
+  env: Record<string, string | undefined>,
+): Promise<void> {
+  if (!sshSigningKey.trim()) {
+    throw new Error("SSH signing key cannot be empty");
+  }
+  if (
+    !sshSigningKey.includes("BEGIN") ||
+    !sshSigningKey.includes("PRIVATE KEY")
+  ) {
+    throw new Error("Invalid SSH private key format");
+  }
+
+  const sshDir = join(homedir(), ".ssh");
+  await mkdir(sshDir, { recursive: true, mode: 0o700 });
+
+  const normalizedKey = sshSigningKey.endsWith("\n")
+    ? sshSigningKey
+    : sshSigningKey + "\n";
+
+  await writeFile(SSH_SIGNING_KEY_PATH, normalizedKey, { mode: 0o600 });
+
+  await execa("git", ["config", "gpg.format", "ssh"], { cwd, env });
+  await execa("git", ["config", "user.signingkey", SSH_SIGNING_KEY_PATH], { cwd, env });
+  await execa("git", ["config", "commit.gpgsign", "true"], { cwd, env });
+}
+
+export async function cleanupSshSigning(): Promise<void> {
+  try {
+    const { rm } = await import("node:fs/promises");
+    await rm(SSH_SIGNING_KEY_PATH, { force: true });
+  } catch {
+    // Ignore error
+  }
+}
 
 function validateRepoRelativePath(path: string): void {
   if (!path || path.startsWith("/") || path.includes("\\"))
@@ -33,6 +74,10 @@ async function configureGitAuth(
   const env = subprocessEnv(ctx, { githubToken: true });
   await execa("git", ["config", "user.name", identity.name], { cwd, env });
   await execa("git", ["config", "user.email", identity.email], { cwd, env });
+
+  if (ctx.github.config.sshSigningKey) {
+    await setupSshSigning(ctx.github.config.sshSigningKey, cwd, env);
+  }
 
   // actions/checkout may leave an auth extraheader. Use a credential helper so
   // the token stays out of .git/config and command arguments, matching Claude's
