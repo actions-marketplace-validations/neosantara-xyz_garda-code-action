@@ -33,6 +33,8 @@ export type EntityLike = {
   number?: number;
   title?: string | null;
   body?: string | null;
+  state?: string;
+  merged?: boolean;
   html_url?: string;
   user?: GitHubUser | null;
   author?: GitHubUser | null;

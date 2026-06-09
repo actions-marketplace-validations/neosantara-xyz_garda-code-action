@@ -47207,7 +47207,25 @@ async function main() {
       `Event: ${context3.eventName}${context3.eventAction ? `.${context3.eventAction}` : ""}`
     );
     info(`Mode input: ${config.mode}`);
-    if (context3.isPR) await hydratePullRequestContext(octokit, context3);
+    if (context3.isPR) {
+      await hydratePullRequestContext(octokit, context3);
+      const prState = context3.payload.pull_request?.state;
+      const isMerged = context3.payload.pull_request?.merged;
+      if (prState === "closed" || isMerged) {
+        setOutput("conclusion", "skipped");
+        notice(
+          `Pull request is closed or merged (state: ${prState}, merged: ${isMerged}). Skipping Garda review/action.`
+        );
+        return;
+      }
+    } else if (context3.isEntity) {
+      const issueState = context3.payload.issue?.state;
+      if (issueState === "closed") {
+        setOutput("conclusion", "skipped");
+        notice(`Issue is closed. Skipping Garda action.`);
+        return;
+      }
+    }
     if (context3.config.mode === "auto" && context3.config.allowFix) {
       const request3 = extractUserRequest(context3);
       const isFixRequest = /\bfix\b/i.test(request3) || /\bperbaiki\b/i.test(request3) || /\bpatch\b/i.test(request3);

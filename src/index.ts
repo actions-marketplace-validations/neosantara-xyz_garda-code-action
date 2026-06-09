@@ -108,7 +108,25 @@ async function main(): Promise<void> {
     );
     core.info(`Mode input: ${config.mode}`);
 
-    if (context.isPR) await hydratePullRequestContext(octokit, context);
+    if (context.isPR) {
+      await hydratePullRequestContext(octokit, context);
+      const prState = context.payload.pull_request?.state;
+      const isMerged = context.payload.pull_request?.merged;
+      if (prState === "closed" || isMerged) {
+        core.setOutput("conclusion", "skipped");
+        core.notice(
+          `Pull request is closed or merged (state: ${prState}, merged: ${isMerged}). Skipping Garda review/action.`,
+        );
+        return;
+      }
+    } else if (context.isEntity) {
+      const issueState = context.payload.issue?.state;
+      if (issueState === "closed") {
+        core.setOutput("conclusion", "skipped");
+        core.notice(`Issue is closed. Skipping Garda action.`);
+        return;
+      }
+    }
 
     if (context.config.mode === "auto" && context.config.allowFix) {
       const request = extractUserRequest(context);
