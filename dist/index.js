@@ -25151,7 +25151,11 @@ function getOctokit(token, options, ...additionalPlugins) {
 
 // src/index.ts
 import { writeFile as writeFile5, mkdir as mkdir4 } from "node:fs/promises";
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
+
+// src/config.ts
+import { readFileSync as readFileSync2, existsSync as existsSync3 } from "node:fs";
+import { join } from "node:path";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -29195,13 +29199,44 @@ var coerce = {
 var NEVER = INVALID;
 
 // src/config.ts
+function loadConfigFromFile() {
+  const cwd = process.env.GITHUB_WORKSPACE || process.cwd();
+  for (const name of ["garda-action.json", "neo-action.json"]) {
+    const filePath = join(cwd, name);
+    if (existsSync3(filePath)) {
+      try {
+        const content = readFileSync2(filePath, "utf8");
+        const parsed = JSON.parse(content);
+        if (typeof parsed === "object" && parsed !== null) {
+          return parsed;
+        }
+      } catch (err) {
+        warning(
+          `Failed to parse config file ${name}: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+  }
+  return {};
+}
+var fileConfig = loadConfigFromFile();
+var getVal = (name, fallback) => {
+  const envKey = `INPUT_${name.toUpperCase()}`;
+  if (process.env[envKey] !== void 0 && process.env[envKey] !== "") {
+    return process.env[envKey];
+  }
+  const camelName = name.replace(/_([a-z])/g, (_, g) => g.toUpperCase());
+  if (fileConfig[name] !== void 0) return String(fileConfig[name]);
+  if (fileConfig[camelName] !== void 0) return String(fileConfig[camelName]);
+  const val = getInput(name);
+  return val !== "" ? val : fallback;
+};
 var bool = (name, fallback = false) => {
-  const raw = getInput(name) || String(fallback);
+  const raw = getVal(name, String(fallback));
   return raw.toLowerCase() === "true";
 };
 var int = (name, fallback) => {
-  const raw = getInput(name);
-  if (!raw) return fallback;
+  const raw = getVal(name, String(fallback));
   const value = Number.parseInt(raw, 10);
   if (!Number.isFinite(value) || value < 0) return fallback;
   return value;
@@ -29216,26 +29251,29 @@ var ActionModeSchema = external_exports.enum([
   "release-notes"
 ]);
 function readConfig() {
-  const modeRaw = getInput("mode") || "auto";
+  const modeRaw = getVal("mode", "auto");
   const mode = ActionModeSchema.parse(modeRaw);
-  const githubToken = getInput("github_token") || process.env.GITHUB_TOKEN || "";
+  const githubToken = getVal("github_token", process.env.GITHUB_TOKEN || "");
   if (githubToken) setSecret(githubToken);
   return {
-    triggerPhrase: getInput("trigger_phrase") || "@garda",
-    baseBranch: getInput("base_branch") || "",
-    assigneeTrigger: getInput("assignee_trigger") || "",
-    labelTrigger: getInput("label_trigger") || "garda",
+    triggerPhrase: getVal("trigger_phrase", "@garda"),
+    baseBranch: getVal("base_branch", ""),
+    assigneeTrigger: getVal("assignee_trigger", ""),
+    labelTrigger: getVal("label_trigger", "garda"),
     mode,
-    prompt: getInput("prompt") || "",
-    model: getInput("model") || "grok-code-fast",
-    neosantaraBaseUrl: getInput("neosantara_base_url") || "https://api.neosantara.xyz/v1",
+    prompt: getVal("prompt", ""),
+    model: getVal("model", "grok-code-fast"),
+    neosantaraBaseUrl: getVal(
+      "neosantara_base_url",
+      "https://api.neosantara.xyz/v1"
+    ),
     githubToken,
-    allowedBots: getInput("allowed_bots") || "",
-    allowedNonWriteUsers: getInput("allowed_non_write_users") || "",
-    includeCommentsByActor: getInput("include_comments_by_actor") || "",
-    excludeCommentsByActor: getInput("exclude_comments_by_actor") || "",
-    reviewLanguage: getInput("review_language") || "id",
-    customInstructions: getInput("custom_instructions") || "",
+    allowedBots: getVal("allowed_bots", ""),
+    allowedNonWriteUsers: getVal("allowed_non_write_users", ""),
+    includeCommentsByActor: getVal("include_comments_by_actor", ""),
+    excludeCommentsByActor: getVal("exclude_comments_by_actor", ""),
+    reviewLanguage: getVal("review_language", "id"),
+    customInstructions: getVal("custom_instructions", ""),
     inlineComments: bool("inline_comments", true),
     classifyInlineComments: bool("classify_inline_comments", true),
     batchInlineComments: bool("batch_inline_comments", true),
@@ -29243,24 +29281,36 @@ function readConfig() {
     trackProgress: bool("track_progress", true),
     useStickyComment: bool("use_sticky_comment", true),
     allowFix: bool("allow_fix", false),
-    commitMessage: getInput("commit_message") || "chore: apply Garda Code changes",
-    branchPrefix: getInput("branch_prefix") || "garda/",
-    branchNameTemplate: getInput("branch_name_template") || "{{prefix}}{{entityType}}-{{entityNumber}}-{{description}}",
-    botId: getInput("bot_id") || "",
-    botName: getInput("bot_name") || "garda-code[bot]",
-    inlineClassifierMode: external_exports.enum(["heuristic", "model", "off"]).catch("model").parse(getInput("inline_classifier_mode") || "model"),
-    inlineClassifierModel: getInput("inline_classifier_model") || getInput("model") || "grok-code-fast",
-    minInlineSeverity: external_exports.enum(["low", "medium", "high"]).catch("low").parse(getInput("min_inline_severity") || "low"),
+    commitMessage: getVal("commit_message", "chore: apply Garda Code changes"),
+    branchPrefix: getVal("branch_prefix", "garda/"),
+    branchNameTemplate: getVal(
+      "branch_name_template",
+      "{{prefix}}{{entityType}}-{{entityNumber}}-{{description}}"
+    ),
+    botId: getVal("bot_id", ""),
+    botName: getVal("bot_name", "garda-code[bot]"),
+    inlineClassifierMode: external_exports.enum(["heuristic", "model", "off"]).catch("model").parse(getVal("inline_classifier_mode", "model")),
+    inlineClassifierModel: getVal(
+      "inline_classifier_model",
+      getVal("model", "grok-code-fast")
+    ),
+    minInlineSeverity: external_exports.enum(["low", "medium", "high"]).catch("low").parse(getVal("min_inline_severity", "low")),
     commitStrategy: external_exports.enum(["git", "github-api"]).catch("git").parse(
-      getInput("commit_strategy") || (bool("use_commit_signing", false) ? "github-api" : "git")
+      getVal(
+        "commit_strategy",
+        bool("use_commit_signing", false) ? "github-api" : "git"
+      )
     ),
     useCommitSigning: bool("use_commit_signing", false),
     enableMcpCompat: bool("enable_mcp_compat", true),
-    allowedTools: getInput("allowed_tools") || "",
-    disallowedTools: getInput("disallowed_tools") || "",
+    allowedTools: getVal("allowed_tools", ""),
+    disallowedTools: getVal("disallowed_tools", ""),
     useGitHubAppTokenExchange: bool("use_github_app_token_exchange", false),
-    githubAppTokenExchangeUrl: getInput("github_app_token_exchange_url") || "",
-    githubAppTokenExchangeAudience: getInput("github_app_token_exchange_audience") || "garda-code-action",
+    githubAppTokenExchangeUrl: getVal("github_app_token_exchange_url", ""),
+    githubAppTokenExchangeAudience: getVal(
+      "github_app_token_exchange_audience",
+      "garda-code-action"
+    ),
     maxSteps: int("max_steps", 40),
     maxDiffChars: int("max_diff_chars", 8e4),
     maxFileChars: int("max_file_chars", 3e4),
@@ -29274,7 +29324,7 @@ function readConfig() {
     maxImageBytes: int("max_image_bytes", 1572864),
     cleanupEmptyBranch: bool("cleanup_empty_branch", true),
     restoreTrustedConfig: bool("restore_trusted_config", true),
-    ignore: getInput("ignore") || "",
+    ignore: getVal("ignore", ""),
     dryRun: bool("dry_run", false),
     showFullOutput: bool("show_full_output", false),
     displayReport: bool("display_report", false)
@@ -29653,9 +29703,9 @@ function assertFixAllowed(context3) {
 import {
   appendFileSync as appendFileSync3,
   cpSync,
-  existsSync as existsSync3,
+  existsSync as existsSync4,
   mkdirSync,
-  readFileSync as readFileSync4,
+  readFileSync as readFileSync5,
   rmSync
 } from "node:fs";
 import { dirname } from "node:path";
@@ -32876,7 +32926,7 @@ var handleResult2 = (result, verboseInfo, { reject }) => {
 };
 
 // node_modules/execa/lib/stdio/handle-sync.js
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 
 // node_modules/execa/lib/stdio/type.js
 var getStdioItemType = (value, optionName) => {
@@ -33206,7 +33256,7 @@ var normalizeStdioSync = (stdioArray, buffer, verboseInfo) => stdioArray.map((st
 var isOutputPipeOnly = (stdioOption) => stdioOption === "pipe" || Array.isArray(stdioOption) && stdioOption.every((item) => item === "pipe");
 
 // node_modules/execa/lib/stdio/native.js
-import { readFileSync as readFileSync2 } from "node:fs";
+import { readFileSync as readFileSync3 } from "node:fs";
 import tty2 from "node:tty";
 var handleNativeStream = ({ stdioItem, stdioItem: { type }, isStdioArray, fdNumber, direction, isSync }) => {
   if (!isStdioArray || type !== "native") {
@@ -33240,7 +33290,7 @@ var getTargetFd = ({ value, optionName, fdNumber, direction }) => {
   if (tty2.isatty(targetFdNumber)) {
     throw new TypeError(`The \`${optionName}: ${serializeOptionValue(value)}\` option is invalid: it cannot be a TTY with synchronous methods.`);
   }
-  return { type: "uint8Array", value: bufferToUint8Array(readFileSync2(targetFdNumber)), optionName };
+  return { type: "uint8Array", value: bufferToUint8Array(readFileSync3(targetFdNumber)), optionName };
 };
 var getTargetFdNumber = (value, fdNumber) => {
   if (value === "inherit") {
@@ -33573,8 +33623,8 @@ var addProperties = {
 var addPropertiesSync = {
   input: {
     ...addProperties,
-    fileUrl: ({ value }) => ({ contents: [bufferToUint8Array(readFileSync3(value))] }),
-    filePath: ({ value: { file } }) => ({ contents: [bufferToUint8Array(readFileSync3(file))] }),
+    fileUrl: ({ value }) => ({ contents: [bufferToUint8Array(readFileSync4(value))] }),
+    filePath: ({ value: { file } }) => ({ contents: [bufferToUint8Array(readFileSync4(file))] }),
     fileNumber: forbiddenIfSync,
     iterable: ({ value }) => ({ contents: [...value] }),
     string: ({ value }) => ({ contents: [value] }),
@@ -36478,7 +36528,7 @@ async function ensureSnapshotExcludedFromGit(cwd) {
     { cwd }
   );
   const excludePath = stdout.trim();
-  const excludeContents = existsSync3(excludePath) ? readFileSync4(excludePath, "utf8") : "";
+  const excludeContents = existsSync4(excludePath) ? readFileSync5(excludePath, "utf8") : "";
   if (excludeContents.split(/\r?\n/).includes(PR_EXCLUDE_PATTERN)) return;
   mkdirSync(dirname(excludePath), { recursive: true });
   const prefix = excludeContents.length === 0 || excludeContents.endsWith("\n") ? "" : "\n";
@@ -36497,7 +36547,7 @@ async function restoreTrustedConfigFromBase(context3) {
   rmSync(`${cwd}/${PR_SNAPSHOT_DIR}`, { recursive: true, force: true });
   for (const path8 of SENSITIVE_CONFIG_PATHS) {
     const full = `${cwd}/${path8}`;
-    if (existsSync3(full)) {
+    if (existsSync4(full)) {
       cpSync(full, `${cwd}/${PR_SNAPSHOT_DIR}/${path8}`, {
         recursive: true,
         dereference: true
@@ -36548,7 +36598,7 @@ async function restoreTrustedConfigFromBase(context3) {
 }
 
 // src/github/workspace.ts
-import { existsSync as existsSync4 } from "node:fs";
+import { existsSync as existsSync5 } from "node:fs";
 
 // src/utils/branch-template.ts
 var NUM_DESCRIPTION_WORDS = 5;
@@ -36609,7 +36659,7 @@ async function isGitRepo(cwd) {
 }
 async function ensureGitWorkspace() {
   const cwd = process.env.GITHUB_WORKSPACE || process.cwd();
-  if (existsSync4(`${cwd}/.git`) || await isGitRepo(cwd)) return cwd;
+  if (existsSync5(`${cwd}/.git`) || await isGitRepo(cwd)) return cwd;
   warning(
     "Workspace is not a git checkout. File tools may only use GitHub API context. Add actions/checkout before this action."
   );
@@ -38522,7 +38572,7 @@ minimatch.unescape = unescape2;
 
 // src/github/image-downloader.ts
 import { mkdir as mkdir2, writeFile as writeFile2 } from "node:fs/promises";
-import { join } from "node:path";
+import { join as join2 } from "node:path";
 var SERVER_URL = (process.env.GITHUB_SERVER_URL || "https://github.com").replace(/\/$/, "");
 var escapedServer = SERVER_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 var MARKDOWN_IMAGE_REGEX = new RegExp(
@@ -38620,7 +38670,7 @@ async function downloadCommentImages(octokit, ctx, sources) {
   const maxImages = Math.max(0, ctx.config.maxCommentImages);
   const maxBytes = Math.max(0, ctx.config.maxImageBytes);
   if (maxImages === 0 || maxBytes === 0) return [];
-  const downloadsDir = join(
+  const downloadsDir = join2(
     process.env.RUNNER_TEMP || "/tmp",
     "garda-code-images"
   );
@@ -38673,7 +38723,7 @@ async function downloadCommentImages(octokit, ctx, sources) {
         }
         const buffer = Buffer.from(arrayBuffer);
         const ext2 = extensionFromMime(mime);
-        const localPath = join(
+        const localPath = join2(
           downloadsDir,
           `image-${downloaded.length + 1}-${Date.now()}${ext2}`
         );
@@ -45785,7 +45835,7 @@ function zodToJsonSchema(schema) {
 
 // src/tools/repo.ts
 import { readdir as readdir2, readFile, stat as stat2, writeFile as writeFile3, realpath } from "node:fs/promises";
-import { existsSync as existsSync5 } from "node:fs";
+import { existsSync as existsSync6 } from "node:fs";
 import { resolve, relative, sep as sep3, dirname as dirname2 } from "node:path";
 
 // src/utils/subprocess-env.ts
@@ -45834,7 +45884,7 @@ async function safePath(path8, forWrite = false) {
   if (full !== root && !full.startsWith(`${root}${sep3}`))
     throw new Error(`Path escapes repository: ${path8}`);
   const realRoot = await realpath(root);
-  if (existsSync5(full)) {
+  if (existsSync6(full)) {
     const realFull = await realpath(full);
     if (realFull !== realRoot && !realFull.startsWith(`${realRoot}${sep3}`))
       throw new Error(`Path escapes repository via symlink: ${path8}`);
@@ -46222,7 +46272,7 @@ async function postBufferedInlineComments(octokit, ctx, comments) {
 
 // src/tools/commit.ts
 import { readFile as readFile2, writeFile as writeFile4, mkdir as mkdir3 } from "node:fs/promises";
-import { join as join2, dirname as dirname3 } from "node:path";
+import { join as join3, dirname as dirname3 } from "node:path";
 function validateRepoRelativePath(path8) {
   if (!path8 || path8.startsWith("/") || path8.includes("\\"))
     throw new Error(`Invalid repository path: ${path8}`);
@@ -46249,7 +46299,7 @@ async function configureGitAuth(ctx, cwd) {
     );
   } catch {
   }
-  const helperPath = join2(
+  const helperPath = join3(
     process.env.RUNNER_TEMP || cwd,
     "garda-git-credential-helper.sh"
   );
@@ -46367,7 +46417,7 @@ async function commitWithGitHubApi(args, ctx) {
   });
   const tree = [];
   for (const file of args.files) {
-    const content = await readFile2(join2(cwd, file));
+    const content = await readFile2(join3(cwd, file));
     const { data: blob } = await ctx.octokit.rest.git.createBlob({
       owner,
       repo,
@@ -47102,7 +47152,7 @@ Generated with Garda Code Action.`
 async function writeExecutionTranscript(context3, result, inlineStats, branchFinalization, commentImages) {
   const dir = process.env.RUNNER_TEMP || process.cwd();
   await mkdir4(dir, { recursive: true });
-  const file = join3(
+  const file = join4(
     dir,
     `garda-code-execution-${context3.runId || "local"}.json`
   );
