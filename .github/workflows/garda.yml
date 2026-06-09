@@ -13,6 +13,7 @@ permissions:
   pull-requests: write
   issues: write
   actions: read
+  id-token: write
 
 jobs:
   garda:
@@ -21,12 +22,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: ErRickow/garda-code-action@main
+      - uses: neosantara-xyz/garda-code-action@main
         with:
           trigger_phrase: "@garda"
           mode: "auto"
           model: "grok-code-fast"
           review_language: "id"
           allow_fix: "true"
+          
+          # --- KONFIGURASI DENGAN API KEY (Default) ---
+          # env:
+          #   NEOSANTARA_API_KEY: ${{ secrets.NEOSANTARA_API_KEY }}
+          
+          # --- KONFIGURASI DENGAN OIDC TOKEN EXCHANGE ---
+          # Aktifkan blok di bawah ini untuk menguji pertukaran token GitHub App
+          use_github_app_token_exchange: "true"
+          github_app_token_exchange_url: "https://api.neosantara.xyz/github-app/token-exchange"
+          github_app_token_exchange_audience: "garda-code-action"
         env:
           NEOSANTARA_API_KEY: ${{ secrets.NEOSANTARA_API_KEY }}
