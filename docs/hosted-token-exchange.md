@@ -100,6 +100,4 @@ The hosted service (Neosantara `routes/oidc.js`) enforces:
 
 ## Prerequisite: install the Garda GitHub App
 
-The backend can only mint a token for repositories where the Garda Code GitHub App is installed, and it must be configured with `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`. If the app is not installed on the target repository, the exchange returns `installation_not_found`.
-
-If you prefer to manage the key yourself instead of using the hosted service, use `actions/create-github-app-token` in the workflow — see [`setup-github-app.md`](setup-github-app.md).
+The backend can only mint a token for repositories where the Garda Code GitHub App is installed, and it must be configured with `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY`. If the app is not installed on the target repository, the exchange returns `installation_not_found` and Garda falls back to the workflow `GITHUB_TOKEN`.

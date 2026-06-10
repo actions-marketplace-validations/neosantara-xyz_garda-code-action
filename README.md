@@ -81,10 +81,7 @@ That's it. With the app installed and `id-token: write` granted, Garda automatic
 
 ## Other setups
 
-If you cannot install the official Garda app (for example, org policy blocks third-party apps), you have two fallbacks:
-
-- **Your own GitHub App token** — create a private App and pass its token. See [`docs/setup-github-app.md`](docs/setup-github-app.md).
-- **Default `GITHUB_TOKEN`** — no app at all; comments appear as `github-actions[bot]`. See [`examples/garda-review-default-token.yml`](examples/garda-review-default-token.yml).
+If you cannot install the official Garda app (for example, org policy blocks third-party apps), run Garda with the default `GITHUB_TOKEN` — no app at all. Comments appear as `github-actions[bot]`. See [`examples/garda-review-default-token.yml`](examples/garda-review-default-token.yml).
 
 ## Modes
 
@@ -102,15 +99,13 @@ Ready-to-use workflows live in [`examples/`](examples/):
 
 | Workflow | What it does |
 | --- | --- |
-| [`garda-review.yml`](examples/garda-review.yml) | Recommended: install the Garda app and review as `garda-code[bot]` (no private key) |
-| [`garda-review-default-token.yml`](examples/garda-review-default-token.yml) | No app at all — uses the default `GITHUB_TOKEN` (comments as `github-actions[bot]`) |
+| [`garda-review.yml`](examples/garda-review.yml) | Recommended: install the Garda app and review as `garda-code[bot]` |
+| [`garda-review-default-token.yml`](examples/garda-review-default-token.yml) | No app — uses the default `GITHUB_TOKEN` (comments as `github-actions[bot]`) |
 | [`garda-review-comprehensive.yml`](examples/garda-review-comprehensive.yml) | In-depth review steered by `custom_instructions` (quality, security, performance, testing, docs) |
 | [`garda-review-filtered-paths.yml`](examples/garda-review-filtered-paths.yml) | Review only when critical paths change (auth, payments, infra) |
 | [`garda-security-review.yml`](examples/garda-security-review.yml) | Security-focused review triggered by `@garda security` |
 | [`garda-readonly-locked-tools.yml`](examples/garda-readonly-locked-tools.yml) | Read-only review with a locked-down tool policy |
-| [`garda-review-with-github-app.yml`](examples/garda-review-with-github-app.yml) | Bring your own GitHub App token (org blocks third-party apps) |
-| [`garda-review-token-exchange.yml`](examples/garda-review-token-exchange.yml) | Explicitly force the hosted OIDC token exchange |
-| [`garda-fix-with-github-app.yml`](examples/garda-fix-with-github-app.yml) | Fix mode (commits suggested changes) with a GitHub App token |
+| [`garda-fix.yml`](examples/garda-fix.yml) | Fix mode — Garda commits suggested changes when you comment `@garda fix` |
 
 ## Local simulation
 
@@ -172,11 +167,9 @@ The runner uses `responses.create` with `store: true` and continues tool turns u
 
 ## Bot identity
 
-Garda's reviews appear as `garda-code[bot]` when it runs with a GitHub App token. There are three ways to get one, in order of preference:
+Garda's reviews appear as `garda-code[bot]` when the official Garda Code app is installed and the workflow grants `id-token: write` — Garda mints the bot token automatically via Neosantara's hosted token exchange, with nothing else to configure. See the [Quickstart](#quickstart) and [`docs/hosted-token-exchange.md`](docs/hosted-token-exchange.md).
 
-1. **Official Garda app + hosted token exchange (recommended)** — install [github.com/apps/garda-code](https://github.com/apps/garda-code) and grant `id-token: write`. Garda mints the token automatically; nothing else to configure. See the [Quickstart](#quickstart) and [`docs/hosted-token-exchange.md`](docs/hosted-token-exchange.md).
-2. **Bring your own GitHub App** — if org policy blocks third-party apps, create your own App and pass its token. See [`docs/setup-github-app.md`](docs/setup-github-app.md).
-3. **Default `GITHUB_TOKEN`** — no app; comments appear as `github-actions[bot]`. See [`examples/garda-review-default-token.yml`](examples/garda-review-default-token.yml).
+If you can't install the app, Garda falls back to the default `GITHUB_TOKEN` and comments appear as `github-actions[bot]`.
 
 ## Advanced parity options
 
