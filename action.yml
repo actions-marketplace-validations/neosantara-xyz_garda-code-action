@@ -1,8 +1,8 @@
 name: "Garda Code Action"
-description: "Production-grade protective GitHub automation powered by Neosantara Responses API"
+description: "Protect your code with Garda — AI-powered GitHub code review and automation by Neosantara"
 author: "Neosantara"
 branding:
-  icon: "at-sign"
+  icon: "shield"
   color: "blue"
 
 inputs:
