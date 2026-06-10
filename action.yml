@@ -155,13 +155,13 @@ inputs:
     required: false
     default: ""
   use_github_app_token_exchange:
-    description: "Use GitHub Actions OIDC to request a GitHub App installation token from a hosted token exchange service."
-    required: false
-    default: "false"
-  github_app_token_exchange_url:
-    description: "Hosted token exchange endpoint. Requires use_github_app_token_exchange=true and id-token: write permission."
+    description: "Force use of the hosted OIDC token exchange to obtain a garda-code[bot] token. When unset, Garda auto-detects OIDC (id-token: write) and tries the exchange, falling back to github_token if the app is not installed."
     required: false
     default: ""
+  github_app_token_exchange_url:
+    description: "Hosted token exchange endpoint. Used when OIDC is available (id-token: write)."
+    required: false
+    default: "https://api.neosantara.xyz/github-app/token-exchange"
   github_app_token_exchange_audience:
     description: "OIDC audience used when requesting a token for the hosted GitHub App token exchange."
     required: false

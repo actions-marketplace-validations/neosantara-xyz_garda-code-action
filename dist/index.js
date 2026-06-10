@@ -29763,8 +29763,16 @@ function readConfig() {
     enableMcpCompat: bool("enable_mcp_compat", true),
     allowedTools: getVal("allowed_tools", ""),
     disallowedTools: getVal("disallowed_tools", ""),
-    useGitHubAppTokenExchange: bool("use_github_app_token_exchange", false),
-    githubAppTokenExchangeUrl: getVal("github_app_token_exchange_url", ""),
+    useGitHubAppTokenExchange: (() => {
+      const raw = getVal("use_github_app_token_exchange", "").toLowerCase();
+      if (raw === "true" || raw === "on") return "on";
+      if (raw === "false" || raw === "off") return "off";
+      return "auto";
+    })(),
+    githubAppTokenExchangeUrl: getVal(
+      "github_app_token_exchange_url",
+      "https://api.neosantara.xyz/github-app/token-exchange"
+    ),
     githubAppTokenExchangeAudience: getVal(
       "github_app_token_exchange_audience",
       "garda-code-action"
@@ -29796,9 +29804,9 @@ function validateConfig(config) {
       "NEOSANTARA_API_KEY environment variable is required (set it as a repository secret)."
     );
   }
-  if (!config.githubToken && !config.useGitHubAppTokenExchange) {
+  if (!config.githubToken && config.useGitHubAppTokenExchange === "off") {
     problems.push(
-      "github_token is required (provide via input, GITHUB_TOKEN, or enable use_github_app_token_exchange)."
+      "github_token is required (provide via input, GITHUB_TOKEN, or allow the hosted token exchange)."
     );
   }
   if (!config.model || !config.model.trim()) {
@@ -29857,20 +29865,33 @@ async function exchangeOidcForGitHubToken(config) {
   return token;
 }
 async function resolveGitHubToken(config) {
-  if (config.useGitHubAppTokenExchange) {
-    const token2 = await exchangeOidcForGitHubToken(config);
-    config.githubToken = token2;
-    return token2;
+  const fallbackToken = config.githubToken || process.env.GITHUB_TOKEN || "";
+  const oidcAvailable = Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+  const shouldAttemptExchange = config.useGitHubAppTokenExchange === "on" || config.useGitHubAppTokenExchange === "auto" && oidcAvailable && Boolean(config.githubAppTokenExchangeUrl);
+  if (shouldAttemptExchange) {
+    try {
+      const token = await exchangeOidcForGitHubToken(config);
+      config.githubToken = token;
+      info("Using garda-code[bot] token from hosted token exchange.");
+      return token;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (config.useGitHubAppTokenExchange === "on") {
+        throw err;
+      }
+      info(
+        `Hosted token exchange unavailable; falling back to workflow token. (${message})`
+      );
+    }
   }
-  const token = config.githubToken || process.env.GITHUB_TOKEN || "";
-  if (!token) {
+  if (!fallbackToken) {
     throw new Error(
-      "github_token input, GITHUB_TOKEN, or use_github_app_token_exchange=true is required."
+      "No GitHub token available. Install the Garda Code app with id-token: write, set github_token, or provide GITHUB_TOKEN."
     );
   }
-  setSecret(token);
-  config.githubToken = token;
-  return token;
+  setSecret(fallbackToken);
+  config.githubToken = fallbackToken;
+  return fallbackToken;
 }
 
 // src/github/context.ts

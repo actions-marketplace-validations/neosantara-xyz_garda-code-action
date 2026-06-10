@@ -1,6 +1,8 @@
-# Setup GitHub App for Garda Code Action
+# Bring your own GitHub App
 
-A normal workflow token makes comments as `github-actions[bot]`. To make comments and commits appear as your own app, for example `garda-code[bot]` or `neosantara-ai[bot]`, run the action with a GitHub App installation token.
+> **Most users don't need this.** The recommended setup is to install the official **[Garda Code app](https://github.com/apps/garda-code)** and grant `id-token: write` — Garda then mints its `garda-code[bot]` token automatically via Neosantara's hosted token exchange, with no private key to manage. See [`hosted-token-exchange.md`](hosted-token-exchange.md).
+
+Use this guide only if you cannot install the official app (for example, org policy blocks third-party apps) and want comments to appear under your own bot identity instead of `github-actions[bot]`. You run the action with a GitHub App installation token you generate yourself.
 
 ## Required app permissions
 
@@ -46,7 +48,3 @@ Then pass:
 bot_id: ${{ steps.bot-user.outputs.id }}
 bot_name: ${{ steps.app-token.outputs.app-slug }}[bot]
 ```
-
-## Why this is not OpenReview-style yet
-
-This repository is a GitHub Action. It does not need a hosted webhook server. OpenReview-style bots run as a GitHub App webhook service, often on Vercel or another backend. That model is better for a SaaS bot later, but the action-first setup is simpler to publish and install.

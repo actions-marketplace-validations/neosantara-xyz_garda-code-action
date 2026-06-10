@@ -33,9 +33,13 @@ This action follows the proven production shape of Claude Code Action — event 
 - TOCTOU body-safety guard, secret/build/lock files ignored by default, fail-fast config validation
 - Execution transcript output (`execution_file`), empty issue-fix branch cleanup, dry run support, and a local event simulator
 
-## Usage
+## Quickstart
 
-Garda is designed to run as a **GitHub App**, so its reviews and comments appear under your own bot identity (e.g. `garda-code[bot]`) instead of the generic `github-actions[bot]`. Generate a short-lived App token with [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token) and pass it to the action:
+Garda runs as the **Garda Code GitHub App**, so its reviews appear as `garda-code[bot]`. Three steps:
+
+1. **Install the app** on your repository or organization: **[github.com/apps/garda-code](https://github.com/apps/garda-code)**
+2. **Add your Neosantara API key** as a repository secret named `NEOSANTARA_API_KEY` ([how to add secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)).
+3. **Add the workflow** below to `.github/workflows/garda.yml`.
 
 ```yaml
 name: Garda Review
@@ -49,6 +53,7 @@ on:
     types: [created]
 
 permissions:
+  id-token: write # lets Garda mint its garda-code[bot] token
   contents: read
   pull-requests: write
   issues: write
@@ -58,25 +63,11 @@ jobs:
   garda:
     runs-on: ubuntu-latest
     steps:
-      - name: Create Garda GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.GARDA_APP_CLIENT_ID }}
-          private-key: ${{ secrets.GARDA_APP_PRIVATE_KEY }}
-          permission-contents: read
-          permission-pull-requests: write
-          permission-issues: write
-          permission-actions: read
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-
       - uses: neosantara-xyz/garda-code-action@v1
         with:
-          github_token: ${{ steps.app-token.outputs.token }}
           trigger_phrase: "@garda"
           mode: "auto"
           review_language: "id"
@@ -86,24 +77,14 @@ jobs:
           NEOSANTARA_API_KEY: ${{ secrets.NEOSANTARA_API_KEY }}
 ```
 
-See [`docs/setup-github-app.md`](docs/setup-github-app.md) to create the Garda GitHub App and configure `GARDA_APP_CLIENT_ID` / `GARDA_APP_PRIVATE_KEY`.
+That's it. With the app installed and `id-token: write` granted, Garda automatically obtains a `garda-code[bot]` token via Neosantara's hosted token exchange — no GitHub App private key to create, store, or rotate.
 
-### Without a GitHub App
+## Other setups
 
-You can also run Garda with the default `GITHUB_TOKEN` — no App setup required. Comments will appear as `github-actions[bot]`. Just drop the token step and the `github_token` input:
+If you cannot install the official Garda app (for example, org policy blocks third-party apps), you have two fallbacks:
 
-```yaml
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: neosantara-xyz/garda-code-action@v1
-        with:
-          trigger_phrase: "@garda"
-          mode: "auto"
-          review_language: "id"
-        env:
-          NEOSANTARA_API_KEY: ${{ secrets.NEOSANTARA_API_KEY }}
-```
+- **Your own GitHub App token** — create a private App and pass its token. See [`docs/setup-github-app.md`](docs/setup-github-app.md).
+- **Default `GITHUB_TOKEN`** — no app at all; comments appear as `github-actions[bot]`. See [`examples/garda-review-default-token.yml`](examples/garda-review-default-token.yml).
 
 ## Modes
 
@@ -121,14 +102,14 @@ Ready-to-use workflows live in [`examples/`](examples/):
 
 | Workflow | What it does |
 | --- | --- |
-| [`garda-review.yml`](examples/garda-review.yml) | Recommended: automatic PR review as `garda-code[bot]` via a GitHub App token |
-| [`garda-review-default-token.yml`](examples/garda-review-default-token.yml) | Simplest setup with the default `GITHUB_TOKEN` (comments as `github-actions[bot]`) |
+| [`garda-review.yml`](examples/garda-review.yml) | Recommended: install the Garda app and review as `garda-code[bot]` (no private key) |
+| [`garda-review-default-token.yml`](examples/garda-review-default-token.yml) | No app at all — uses the default `GITHUB_TOKEN` (comments as `github-actions[bot]`) |
 | [`garda-review-comprehensive.yml`](examples/garda-review-comprehensive.yml) | In-depth review steered by `custom_instructions` (quality, security, performance, testing, docs) |
 | [`garda-review-filtered-paths.yml`](examples/garda-review-filtered-paths.yml) | Review only when critical paths change (auth, payments, infra) |
 | [`garda-security-review.yml`](examples/garda-security-review.yml) | Security-focused review triggered by `@garda security` |
 | [`garda-readonly-locked-tools.yml`](examples/garda-readonly-locked-tools.yml) | Read-only review with a locked-down tool policy |
-| [`garda-review-with-github-app.yml`](examples/garda-review-with-github-app.yml) | Review using a GitHub App token so comments appear as your bot |
-| [`garda-review-token-exchange.yml`](examples/garda-review-token-exchange.yml) | Review as `garda-code[bot]` via hosted OIDC token exchange (no private key in repo) |
+| [`garda-review-with-github-app.yml`](examples/garda-review-with-github-app.yml) | Bring your own GitHub App token (org blocks third-party apps) |
+| [`garda-review-token-exchange.yml`](examples/garda-review-token-exchange.yml) | Explicitly force the hosted OIDC token exchange |
 | [`garda-fix-with-github-app.yml`](examples/garda-fix-with-github-app.yml) | Fix mode (commits suggested changes) with a GitHub App token |
 
 ## Local simulation
@@ -189,34 +170,13 @@ https://api.neosantara.xyz/v1
 
 The runner uses `responses.create` with `store: true` and continues tool turns using `previous_response_id`. It retries transient 408/409/425/429/5xx errors and honors `Retry-After` when present. Inline comment classification can also use the Responses API through `inline_classifier_mode: model`.
 
-## Recommended GitHub App setup
+## Bot identity
 
-For production use, generate a short-lived GitHub App token before running this action. That makes comments appear as your app, for example `garda-code[bot]`, instead of `github-actions[bot]`. See [`docs/setup-github-app.md`](docs/setup-github-app.md). To avoid storing a private key in your repo, use the hosted OIDC token exchange instead — see [`docs/hosted-token-exchange.md`](docs/hosted-token-exchange.md).
+Garda's reviews appear as `garda-code[bot]` when it runs with a GitHub App token. There are three ways to get one, in order of preference:
 
-```yaml
-- name: Create Garda GitHub App token
-  id: app-token
-  uses: actions/create-github-app-token@v3
-  with:
-    client-id: ${{ vars.GARDA_APP_CLIENT_ID }}
-    private-key: ${{ secrets.GARDA_APP_PRIVATE_KEY }}
-    permission-contents: read
-    permission-pull-requests: write
-    permission-issues: write
-    permission-actions: read
-
-- uses: actions/checkout@v4
-  with:
-    fetch-depth: 0
-    token: ${{ steps.app-token.outputs.token }}
-
-- uses: neosantara-xyz/garda-code-action@v1
-  with:
-    github_token: ${{ steps.app-token.outputs.token }}
-    trigger_phrase: "@garda"
-  env:
-    NEOSANTARA_API_KEY: ${{ secrets.NEOSANTARA_API_KEY }}
-```
+1. **Official Garda app + hosted token exchange (recommended)** — install [github.com/apps/garda-code](https://github.com/apps/garda-code) and grant `id-token: write`. Garda mints the token automatically; nothing else to configure. See the [Quickstart](#quickstart) and [`docs/hosted-token-exchange.md`](docs/hosted-token-exchange.md).
+2. **Bring your own GitHub App** — if org policy blocks third-party apps, create your own App and pass its token. See [`docs/setup-github-app.md`](docs/setup-github-app.md).
+3. **Default `GITHUB_TOKEN`** — no app; comments appear as `github-actions[bot]`. See [`examples/garda-review-default-token.yml`](examples/garda-review-default-token.yml).
 
 ## Advanced parity options
 

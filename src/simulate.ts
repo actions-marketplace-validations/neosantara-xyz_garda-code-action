@@ -115,7 +115,7 @@ const config: ActionConfig = {
   enableMcpCompat: true,
   allowedTools: "",
   disallowedTools: "",
-  useGitHubAppTokenExchange: false,
+  useGitHubAppTokenExchange: "off",
   githubAppTokenExchangeUrl: "",
   githubAppTokenExchangeAudience: "garda-code-action",
   fallbackModels: [],

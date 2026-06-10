@@ -131,7 +131,7 @@ export type ActionConfig = {
   enableMcpCompat: boolean;
   allowedTools: string;
   disallowedTools: string;
-  useGitHubAppTokenExchange: boolean;
+  useGitHubAppTokenExchange: "auto" | "on" | "off";
   githubAppTokenExchangeUrl: string;
   githubAppTokenExchangeAudience: string;
   fallbackModels: string[];
@@ -220,8 +220,16 @@ export function readConfig(): ActionConfig {
     enableMcpCompat: bool("enable_mcp_compat", true),
     allowedTools: getVal("allowed_tools", ""),
     disallowedTools: getVal("disallowed_tools", ""),
-    useGitHubAppTokenExchange: bool("use_github_app_token_exchange", false),
-    githubAppTokenExchangeUrl: getVal("github_app_token_exchange_url", ""),
+    useGitHubAppTokenExchange: ((): "auto" | "on" | "off" => {
+      const raw = getVal("use_github_app_token_exchange", "").toLowerCase();
+      if (raw === "true" || raw === "on") return "on";
+      if (raw === "false" || raw === "off") return "off";
+      return "auto";
+    })(),
+    githubAppTokenExchangeUrl: getVal(
+      "github_app_token_exchange_url",
+      "https://api.neosantara.xyz/github-app/token-exchange",
+    ),
     githubAppTokenExchangeAudience: getVal(
       "github_app_token_exchange_audience",
       "garda-code-action",
@@ -264,9 +272,12 @@ export function validateConfig(config: ActionConfig): void {
       "NEOSANTARA_API_KEY environment variable is required (set it as a repository secret).",
     );
   }
-  if (!config.githubToken && !config.useGitHubAppTokenExchange) {
+  if (
+    !config.githubToken &&
+    config.useGitHubAppTokenExchange === "off"
+  ) {
     problems.push(
-      "github_token is required (provide via input, GITHUB_TOKEN, or enable use_github_app_token_exchange).",
+      "github_token is required (provide via input, GITHUB_TOKEN, or allow the hosted token exchange).",
     );
   }
   if (!config.model || !config.model.trim()) {

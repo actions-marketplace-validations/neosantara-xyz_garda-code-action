@@ -55,18 +55,46 @@ async function exchangeOidcForGitHubToken(
 export async function resolveGitHubToken(
   config: ActionConfig,
 ): Promise<string> {
-  if (config.useGitHubAppTokenExchange) {
-    const token = await exchangeOidcForGitHubToken(config);
-    config.githubToken = token;
-    return token;
+  const fallbackToken = config.githubToken || process.env.GITHUB_TOKEN || "";
+  const oidcAvailable = Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+
+  // Decide whether to attempt the hosted token exchange.
+  // - "on": always attempt (fail hard if it fails)
+  // - "off": never attempt
+  // - "auto" (default): attempt only when OIDC is available AND a hosted URL is
+  //   configured, then gracefully fall back to the workflow token if the app is
+  //   not installed or the exchange is unavailable.
+  const shouldAttemptExchange =
+    config.useGitHubAppTokenExchange === "on" ||
+    (config.useGitHubAppTokenExchange === "auto" &&
+      oidcAvailable &&
+      Boolean(config.githubAppTokenExchangeUrl));
+
+  if (shouldAttemptExchange) {
+    try {
+      const token = await exchangeOidcForGitHubToken(config);
+      config.githubToken = token;
+      core.info("Using garda-code[bot] token from hosted token exchange.");
+      return token;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (config.useGitHubAppTokenExchange === "on") {
+        // Explicitly requested — do not silently fall back.
+        throw err;
+      }
+      // auto mode: fall back to the workflow token (e.g. app not installed).
+      core.info(
+        `Hosted token exchange unavailable; falling back to workflow token. (${message})`,
+      );
+    }
   }
-  const token = config.githubToken || process.env.GITHUB_TOKEN || "";
-  if (!token) {
+
+  if (!fallbackToken) {
     throw new Error(
-      "github_token input, GITHUB_TOKEN, or use_github_app_token_exchange=true is required.",
+      "No GitHub token available. Install the Garda Code app with id-token: write, set github_token, or provide GITHUB_TOKEN.",
     );
   }
-  core.setSecret(token);
-  config.githubToken = token;
-  return token;
+  core.setSecret(fallbackToken);
+  config.githubToken = fallbackToken;
+  return fallbackToken;
 }
