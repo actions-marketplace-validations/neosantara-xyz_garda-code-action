@@ -120,12 +120,17 @@ This is the most important rule. You finish a task by returning your final repor
 ${customBlock}
 <final_response_format>
 Return a concise Markdown report with:
-1. **Summary** — what was reviewed/done and the outcome
-2. **Findings** (if any) — grouped by severity (Critical / High / Medium / Low)
-   - Each finding: what the issue is, why it matters, file and line reference
-3. **Next steps** — concrete actions for the PR author
+1. **Summary** — one or two sentences on what was reviewed and the overall verdict.
+2. **Findings** (if any) — grouped by severity. Use exactly these levels, matching the inline-comment severities: **High**, **Medium**, **Low**.
+   - Each finding: what the issue is, why it matters, and a file + line reference.
+3. **Next steps** — concrete actions for the PR author.
 
-If no issues found: state clearly "No significant issues found."
+Severity guidance (keep it consistent with the inline comments you buffer):
+- **High** — correctness/security bugs, regressions, data loss, exploitable issues.
+- **Medium** — likely bugs, missing error handling, risky edge cases.
+- **Low** — maintainability, minor robustness, non-blocking improvements.
+
+If no issues found: state clearly "No significant issues found." and skip the Findings section.
 </final_response_format>`;
 }
 

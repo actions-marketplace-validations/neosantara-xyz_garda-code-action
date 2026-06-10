@@ -1,5 +1,30 @@
 import type { NeoContext } from "./context.js";
 import type { BranchFinalization } from "./branch-cleanup.js";
+import type { InlineComment } from "../tools/types.js";
+
+/**
+ * Build a glanceable findings summary line from the classified inline comments,
+ * e.g. "🔴 2 high · 🟡 1 medium · 🔵 3 low" or "✅ No issues found".
+ *
+ * Garda's classifier already assigns a severity to each kept comment, so we can
+ * surface a structured verdict instead of relying on model prose.
+ */
+export function buildFindingsSummary(comments: InlineComment[]): string {
+  const kept = comments.filter((c) => c.confirmed !== false);
+  if (kept.length === 0) return "✅ No issues found";
+
+  const counts = { high: 0, medium: 0, low: 0 };
+  for (const c of kept) {
+    const sev = c.classification?.severity || "low";
+    counts[sev] += 1;
+  }
+
+  const parts: string[] = [];
+  if (counts.high) parts.push(`🔴 ${counts.high} high`);
+  if (counts.medium) parts.push(`🟡 ${counts.medium} medium`);
+  if (counts.low) parts.push(`🔵 ${counts.low} low`);
+  return parts.join(" · ");
+}
 
 export function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
@@ -39,11 +64,20 @@ export function composeFinalComment(params: {
   branch: BranchFinalization;
   resultText: string;
   details: string;
+  findingsSummary?: string;
   failed?: boolean;
   errorDetails?: string;
 }): string {
-  const { context, actor, durationMs, branch, resultText, details, failed } =
-    params;
+  const {
+    context,
+    actor,
+    durationMs,
+    branch,
+    resultText,
+    details,
+    findingsSummary,
+    failed,
+  } = params;
   const duration = formatDuration(durationMs);
   const header = failed
     ? `**Garda encountered an error after ${duration}**`
@@ -51,6 +85,10 @@ export function composeFinalComment(params: {
   const actionBar = buildActionBar(context, branch);
 
   let body = `${header}${actionBar}\n\n---\n`;
+  // Glanceable findings verdict (only for successful runs).
+  if (!failed && findingsSummary) {
+    body += `\n**Findings:** ${findingsSummary}\n`;
+  }
   if (failed && params.errorDetails) {
     body += `\n\`\`\`text\n${params.errorDetails}\n\`\`\`\n`;
   }

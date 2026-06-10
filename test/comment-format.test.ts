@@ -3,14 +3,57 @@ import {
   formatDuration,
   buildActionBar,
   composeFinalComment,
+  buildFindingsSummary,
 } from "../src/github/comment-format.js";
 import type { NeoContext } from "../src/github/context.js";
 import type { BranchFinalization } from "../src/github/branch-cleanup.js";
+import type { InlineComment } from "../src/tools/types.js";
 
 const ctx = {
   actor: "alice",
   runUrl: "https://github.com/o/r/actions/runs/1",
 } as unknown as NeoContext;
+
+function comment(
+  severity: "low" | "medium" | "high" | undefined,
+  confirmed = true,
+): InlineComment {
+  return {
+    path: "a.ts",
+    line: 1,
+    body: "x",
+    confirmed,
+    classification: severity ? { keep: true, severity } : undefined,
+  };
+}
+
+describe("buildFindingsSummary", () => {
+  it("reports no issues when there are no kept comments", () => {
+    expect(buildFindingsSummary([])).toBe("✅ No issues found");
+  });
+
+  it("ignores comments rejected by the classifier", () => {
+    expect(buildFindingsSummary([comment("high", false)])).toBe(
+      "✅ No issues found",
+    );
+  });
+
+  it("groups kept comments by severity, highest first", () => {
+    const out = buildFindingsSummary([
+      comment("high"),
+      comment("high"),
+      comment("medium"),
+      comment("low"),
+      comment("low"),
+      comment("low"),
+    ]);
+    expect(out).toBe("🔴 2 high · 🟡 1 medium · 🔵 3 low");
+  });
+
+  it("defaults missing severity to low", () => {
+    expect(buildFindingsSummary([comment(undefined)])).toBe("🔵 1 low");
+  });
+});
 
 describe("formatDuration", () => {
   it("formats seconds only", () => {
@@ -98,5 +141,33 @@ describe("composeFinalComment", () => {
     });
     const occurrences = out.split("[View workflow run]").length - 1;
     expect(occurrences).toBe(1);
+  });
+
+  it("renders a glanceable findings summary when provided", () => {
+    const out = composeFinalComment({
+      context: ctx,
+      actor: "alice",
+      durationMs: 1000,
+      branch: { hasChanges: false, deleted: false },
+      resultText: "done",
+      details: "",
+      findingsSummary: "🔴 1 high · 🔵 2 low",
+    });
+    expect(out).toContain("**Findings:** 🔴 1 high · 🔵 2 low");
+  });
+
+  it("omits the findings summary on failed runs", () => {
+    const out = composeFinalComment({
+      context: ctx,
+      actor: "alice",
+      durationMs: 1000,
+      branch: { hasChanges: false, deleted: false },
+      resultText: "",
+      details: "",
+      findingsSummary: "✅ No issues found",
+      failed: true,
+      errorDetails: "boom",
+    });
+    expect(out).not.toContain("**Findings:**");
   });
 });

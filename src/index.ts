@@ -35,7 +35,10 @@ import {
   finalizeCreatedBranch,
   type BranchFinalization,
 } from "./github/branch-cleanup.js";
-import { composeFinalComment } from "./github/comment-format.js";
+import {
+  composeFinalComment,
+  buildFindingsSummary,
+} from "./github/comment-format.js";
 import type { InlineComment } from "./tools/types.js";
 import type { GitHubClient } from "./github/types.js";
 import { formatTranscriptToMarkdown } from "./utils/format-transcript.js";
@@ -274,6 +277,7 @@ async function main(): Promise<void> {
       durationMs: Date.now() - startedAt,
       branch: branchFinalization,
       resultText: result.text,
+      findingsSummary: buildFindingsSummary(inlineClassification.comments),
       details,
     });
     await updateTrackingComment(octokit, context, trackingComment, finalBody);

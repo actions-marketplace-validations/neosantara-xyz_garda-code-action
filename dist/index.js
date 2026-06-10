@@ -46465,12 +46465,17 @@ This is the most important rule. You finish a task by returning your final repor
 ${customBlock}
 <final_response_format>
 Return a concise Markdown report with:
-1. **Summary** \u2014 what was reviewed/done and the outcome
-2. **Findings** (if any) \u2014 grouped by severity (Critical / High / Medium / Low)
-   - Each finding: what the issue is, why it matters, file and line reference
-3. **Next steps** \u2014 concrete actions for the PR author
+1. **Summary** \u2014 one or two sentences on what was reviewed and the overall verdict.
+2. **Findings** (if any) \u2014 grouped by severity. Use exactly these levels, matching the inline-comment severities: **High**, **Medium**, **Low**.
+   - Each finding: what the issue is, why it matters, and a file + line reference.
+3. **Next steps** \u2014 concrete actions for the PR author.
 
-If no issues found: state clearly "No significant issues found."
+Severity guidance (keep it consistent with the inline comments you buffer):
+- **High** \u2014 correctness/security bugs, regressions, data loss, exploitable issues.
+- **Medium** \u2014 likely bugs, missing error handling, risky edge cases.
+- **Low** \u2014 maintainability, minor robustness, non-blocking improvements.
+
+If no issues found: state clearly "No significant issues found." and skip the Findings section.
 </final_response_format>`;
 }
 function buildTaskPrompt(context3, _data, userRequest, formattedContext) {
@@ -48136,6 +48141,20 @@ Generated with Garda Code Action.`
 }
 
 // src/github/comment-format.ts
+function buildFindingsSummary(comments) {
+  const kept = comments.filter((c3) => c3.confirmed !== false);
+  if (kept.length === 0) return "\u2705 No issues found";
+  const counts = { high: 0, medium: 0, low: 0 };
+  for (const c3 of kept) {
+    const sev = c3.classification?.severity || "low";
+    counts[sev] += 1;
+  }
+  const parts = [];
+  if (counts.high) parts.push(`\u{1F534} ${counts.high} high`);
+  if (counts.medium) parts.push(`\u{1F7E1} ${counts.medium} medium`);
+  if (counts.low) parts.push(`\u{1F535} ${counts.low} low`);
+  return parts.join(" \xB7 ");
+}
 function formatDuration(ms) {
   const totalSeconds = Math.round(ms / 1e3);
   const minutes = Math.floor(totalSeconds / 60);
@@ -48153,7 +48172,16 @@ function buildActionBar(context3, branch) {
   return ` \u2014\u2014 ${links.join(" \u2022 ")}`;
 }
 function composeFinalComment(params) {
-  const { context: context3, actor, durationMs, branch, resultText, details, failed } = params;
+  const {
+    context: context3,
+    actor,
+    durationMs,
+    branch,
+    resultText,
+    details,
+    findingsSummary,
+    failed
+  } = params;
   const duration = formatDuration(durationMs);
   const header = failed ? `**Garda encountered an error after ${duration}**` : `**Garda finished @${actor}'s task in ${duration}**`;
   const actionBar = buildActionBar(context3, branch);
@@ -48161,6 +48189,11 @@ function composeFinalComment(params) {
 
 ---
 `;
+  if (!failed && findingsSummary) {
+    body += `
+**Findings:** ${findingsSummary}
+`;
+  }
   if (failed && params.errorDetails) {
     body += `
 \`\`\`text
@@ -48466,6 +48499,7 @@ async function main() {
       durationMs: Date.now() - startedAt,
       branch: branchFinalization,
       resultText: result.text,
+      findingsSummary: buildFindingsSummary(inlineClassification.comments),
       details
     });
     await updateTrackingComment(octokit, context3, trackingComment, finalBody);
