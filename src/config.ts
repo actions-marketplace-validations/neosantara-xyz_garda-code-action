@@ -167,7 +167,7 @@ export function readConfig(): ActionConfig {
     labelTrigger: getVal("label_trigger", "garda"),
     mode,
     prompt: getVal("prompt", ""),
-    model: getVal("model", "grok-code-fast"),
+    model: getVal("model", "gemini-3.5-flash"),
     neosantaraBaseUrl: getVal(
       "neosantara_base_url",
       "https://api.neosantara.xyz/v1",
@@ -200,7 +200,7 @@ export function readConfig(): ActionConfig {
       .parse(getVal("inline_classifier_mode", "model")),
     inlineClassifierModel: getVal(
       "inline_classifier_model",
-      getVal("model", "grok-code-fast"),
+      getVal("model", "gemini-3.5-flash"),
     ),
     minInlineSeverity: z
       .enum(["low", "medium", "high"])

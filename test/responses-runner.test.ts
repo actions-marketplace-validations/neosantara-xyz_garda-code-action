@@ -50,7 +50,7 @@ function context(): NeoContext {
       labelTrigger: "garda",
       mode: "review",
       prompt: "",
-      model: "grok-code-fast",
+      model: "gemini-3.5-flash",
       neosantaraBaseUrl: "https://api.neosantara.xyz/v1",
       githubToken: "t",
       allowedBots: "",
@@ -89,7 +89,7 @@ function context(): NeoContext {
       botId: "",
       botName: "garda-code[bot]",
       inlineClassifierMode: "model",
-      inlineClassifierModel: "grok-code-fast",
+      inlineClassifierModel: "gemini-3.5-flash",
       minInlineSeverity: "low",
       commitStrategy: "git",
       useCommitSigning: false,
@@ -235,7 +235,7 @@ describe("Responses runner hardening", () => {
       responses: {
         create: async (body: { model?: string }) => {
           requests.push(body);
-          if (body.model === "grok-code-fast") {
+          if (body.model === "gemini-3.5-flash") {
             primaryCalls += 1;
             const err = new Error("model unavailable") as Error & {
               status?: number;
@@ -281,7 +281,7 @@ describe("Responses runner hardening", () => {
         create: async (body: { model?: string }) => {
           triedModels.push(body.model as string);
           // Primary and the first fallback are unavailable; second succeeds.
-          if (body.model === "grok-code-fast" || body.model === "fallback-a") {
+          if (body.model === "gemini-3.5-flash" || body.model === "fallback-a") {
             const err = new Error("unavailable") as Error & {
               status?: number;
             };
@@ -311,7 +311,7 @@ describe("Responses runner hardening", () => {
     });
 
     expect(result.text).toBe("second fallback done");
-    expect(triedModels).toContain("grok-code-fast");
+    expect(triedModels).toContain("gemini-3.5-flash");
     expect(triedModels).toContain("fallback-a");
     expect(triedModels).toContain("fallback-b");
     // Order preserved: a before b

@@ -26,9 +26,9 @@ jobs:
           trigger_phrase: "@garda"
           mode: "auto"
           review_language: "id"
-          # Optional: override the model (defaults to grok-code-fast)
-          # model: "grok-code-fast"
+          # Optional: override the model (defaults to gemini-3.5-flash)
+          # model: "gemini-3.5-flash"
           # Optional: fallback model(s) if the primary is unavailable
-          # fallback_model: "deepseek-v3"
+          # fallback_model: "claude-opus-4-6, claude-sonnet-4-6"
         env:
           NEOSANTARA_API_KEY: ${{ secrets.NEOSANTARA_API_KEY }}

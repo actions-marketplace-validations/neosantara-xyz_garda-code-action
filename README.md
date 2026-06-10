@@ -64,8 +64,8 @@ jobs:
           trigger_phrase: "@garda"
           mode: "auto"
           review_language: "id"
-          # Optional: override the model (defaults to grok-code-fast)
-          # model: "grok-code-fast"
+          # Optional: override the model (defaults to gemini-3.5-flash)
+          # model: "gemini-3.5-flash"
         env:
           NEOSANTARA_API_KEY: ${{ secrets.NEOSANTARA_API_KEY }}
 ```
@@ -199,8 +199,8 @@ with:
   custom_instructions: "Prioritize correctness and security over style comments."
   max_runtime_seconds: "900"
   fallback_model: |
-    deepseek-v3
-    qwen-2.5-coder
+    claude-opus-4-6
+    claude-sonnet-4-6
     # tried in order if the primary model is unavailable (503/404/422)
   commit_strategy: "github-api" # fix mode only
 ```

@@ -22,7 +22,7 @@ function context(overrides: Partial<NeoContext>): NeoContext {
       labelTrigger: "garda",
       mode: "fix",
       prompt: "",
-      model: "grok-code-fast",
+      model: "gemini-3.5-flash",
       neosantaraBaseUrl: "https://api.neosantara.xyz/v1",
       githubToken: "t",
       allowedBots: "",

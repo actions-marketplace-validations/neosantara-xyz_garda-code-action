@@ -67,7 +67,7 @@ const config: ActionConfig = {
   labelTrigger: process.env.INPUT_LABEL_TRIGGER || "garda",
   mode,
   prompt,
-  model: process.env.INPUT_MODEL || "grok-code-fast",
+  model: process.env.INPUT_MODEL || "gemini-3.5-flash",
   neosantaraBaseUrl:
     process.env.INPUT_NEOSANTARA_BASE_URL || "https://api.neosantara.xyz/v1",
   githubToken: process.env.GITHUB_TOKEN || "simulated-token",
@@ -107,7 +107,7 @@ const config: ActionConfig = {
   botId: "",
   botName: "garda-code[bot]",
   inlineClassifierMode: "model",
-  inlineClassifierModel: "grok-code-fast",
+  inlineClassifierModel: "gemini-3.5-flash",
   minInlineSeverity: "low",
   commitStrategy: "git",
   useCommitSigning: false,
