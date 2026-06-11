@@ -117,3 +117,7 @@ Project docs are in [`docs/docs`](docs/docs).
 ## Security
 
 When using Garda Code Action with your own LLM provider key, code is sent directly to the configured provider. For the default Neosantara flow, set `NEOSANTARA_API_KEY` in your repository or deployment secrets.
+
+# Test trigger comment
+<!-- test trigger comment -->
+
