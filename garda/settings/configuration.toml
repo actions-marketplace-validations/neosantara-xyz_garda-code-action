@@ -5,8 +5,8 @@
 [config]
 # models
 ai_handler="neosantara" # options: neosantara, agno, any_llm, litellm, openai
-model="grok-4.1-fast-non-reasoning"
-fallback_models=["gemini-3.5-flash"]
+model="gemini-3.5-flash"
+fallback_models=["grok-4.1-fast-non-reasoning"]
 #model_reasoning="gpt-5.4-mini" # dedicated reasoning model for self-reflection
 #model_weak="gpt-5.4-nano" # optional, a weaker model to use for some easier tasks
 # CLI
